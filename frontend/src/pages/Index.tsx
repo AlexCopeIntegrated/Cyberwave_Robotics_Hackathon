@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { ShieldAlert, ArrowRight, Flame, Siren, Eye, MapPin, PanelLeftOpen, PanelRightOpen } from "lucide-react";
 import threatHero from "@/assets/threat-hero.jpg";
 import {
@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/resizable";
 import HistoryPanel from "@/components/HistoryPanel";
 import ChatPanel from "@/components/ChatPanel";
-import ToolResultsPanel from "@/components/ToolResultsPanel";
+import ToolResultsPanel, { type ToolResult } from "@/components/ToolResultsPanel";
 
 const features = [
   { icon: Flame, title: "Fire & Hazard", desc: "Detect and analyze fire outbreaks, gas leaks, and environmental hazards in real time." },
@@ -21,6 +21,32 @@ const Index = () => {
   const [entered, setEntered] = useState(false);
   const [showHistory, setShowHistory] = useState(true);
   const [showTools, setShowTools] = useState(true);
+  const [toolResultsList, setToolResultsList] = useState<ToolResult[]>([]);
+
+  const addToolResults = useCallback(
+    (api: {
+      smart_searches?: Array<{ query?: string; result?: unknown; reference_urls?: string[]; error?: string }>;
+      sitemaps?: Array<{ website_url: string; urls: string[]; status?: string; error?: string }>;
+    }) => {
+      if (!api?.smart_searches?.length && !api?.sitemaps?.length) return;
+      const refs: string[] = [];
+      let result: unknown = null;
+      api.smart_searches?.forEach((s) => {
+        if (s.reference_urls) refs.push(...s.reference_urls);
+        if (result == null && s.result != null) result = s.result;
+      });
+      const entry: ToolResult = {
+        toolId: "scrapegraph",
+        toolName: "ScrapeGraph",
+        at: new Date().toISOString(),
+        result: result ?? undefined,
+        reference_urls: refs.length ? refs : undefined,
+        sitemaps: api.sitemaps?.length ? api.sitemaps : undefined,
+      };
+      setToolResultsList((prev) => [entry, ...prev.slice(0, 9)]);
+    },
+    [],
+  );
   if (!entered) {
     return (
       <div className="min-h-screen bg-background">
@@ -148,13 +174,13 @@ const Index = () => {
             </>
           )}
           <ResizablePanel defaultSize={showHistory && showTools ? 50 : showHistory || showTools ? 70 : 100} minSize={30}>
-            <ChatPanel />
+            <ChatPanel onToolResults={addToolResults} />
           </ResizablePanel>
           {showTools && (
             <>
               <ResizableHandle className="w-px bg-border hover:bg-primary transition-colors" />
               <ResizablePanel defaultSize={30} minSize={15} maxSize={45}>
-                <ToolResultsPanel onClose={() => setShowTools(false)} />
+                <ToolResultsPanel results={toolResultsList} onClose={() => setShowTools(false)} />
               </ResizablePanel>
             </>
           )}
